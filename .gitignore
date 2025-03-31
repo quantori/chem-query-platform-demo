@@ -1,0 +1,11 @@
+target/
+*.gradle/
+build/
+.settings/
+.idea/
+.gradle/
+.classpath
+.project
+*.iml
+etc/imago/console/**.mol
+*.log
