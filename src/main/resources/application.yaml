@@ -1,0 +1,47 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: chem-query-platform-demo
+  datasource:
+    url: jdbc:postgresql://db:5432/chem_query_db
+    username: chem_user
+    password: chem_password
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+akka:
+  actor:
+    provider: cluster
+    serializers:
+      jackson-cbor: "akka.serialization.jackson.JacksonCborSerializer"
+    serialization-bindings:
+      "com.quantori.qdp.core.task.actor.StreamTaskActor$Command": jackson-cbor
+      "com.quantori.qdp.core.task.model.StreamTaskStatus": jackson-cbor
+      "com.quantori.qdp.core.task.model.StreamTaskDetails": jackson-cbor
+      "com.quantori.qdp.core.task.model.StreamTaskResult": jackson-cbor
+      "com.quantori.qdp.core.task.model.StreamTaskProcessingException": jackson-cbor
+  remote:
+    artery:
+      canonical:
+        hostname: 127.0.0.1
+        port: 25520
+  cluster:
+    seed-nodes:
+      - akka://ClusterSystem@127.0.0.1:2551
+      - akka://ClusterSystem@127.0.0.1:2552
+      - akka://ClusterSystem@127.0.0.1:2553
+    downing-provider-class: akka.cluster.sbr.SplitBrainResolverProvider
+    auto-down-unreachable-after: 10s
+
+app:
+  search:
+    actors:
+      max: 100
+  cluster:
+    hostname: localhost
+    port: 2551
+    nodes: localhost:2551
