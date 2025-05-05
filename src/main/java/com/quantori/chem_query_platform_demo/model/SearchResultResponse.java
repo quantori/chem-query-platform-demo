@@ -7,7 +7,6 @@ import lombok.ToString;
 
 import java.util.List;
 
-@ToString
 @Getter
 public record SearchResultResponse(String searchId, List<MoleculeDto> molecules, Long counter, Statistic statistic) {
     public SearchResultResponse(@JsonProperty("searchId") final String searchId,
