@@ -6,8 +6,6 @@ import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.quantori.chem_query_platform_demo.service.ElasticMoleculeDataService;
-import com.quantori.chem_query_platform_demo.service.MoleculeDataService;
 import com.quantori.cqp.api.StorageConfiguration;
 import com.quantori.cqp.api.indigo.IndigoFingerprintCalculator;
 import com.quantori.cqp.api.indigo.IndigoInchiProvider;
@@ -144,11 +142,6 @@ public class ElasticSearchConfig implements StorageConfiguration {
     @Bean
     public StorageMolecules storageMolecules() {
         return storageMolecules;
-    }
-
-    @Bean
-    public MoleculeDataService moleculeDataService() {
-        return new ElasticMoleculeDataService(storageLibrary);
     }
 
     // ——————— StorageConfiguration interface ———————

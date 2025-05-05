@@ -1,0 +1,11 @@
+{
+  "fileIds": [
+    "1a0fecca-271a-43eb-bf06-37182188097a"
+  ],
+  "similarity": {
+    "min": 0.8,
+    "max": 1.0,
+    "metric": "tanimoto"
+  },
+  "type": "similarity"
+}
