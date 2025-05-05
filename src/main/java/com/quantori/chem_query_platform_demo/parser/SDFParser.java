@@ -1,133 +1,161 @@
 package com.quantori.chem_query_platform_demo.parser;
 
-import com.quantori.chem_query_platform_demo.parser.exception.FileParserException;
+import com.quantori.chem_query_platform_demo.parser.exception.ParserException;
 
-import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.*;
+import java.io.Closeable;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.NoSuchElementException;
 
 /**
- * Iterator-based SDF file parser that lazily parses each molecule's properties
- * into a {@link Molecule}, containing a map of key-value metadata pairs.
+ * Parses an SDF (Structure Data File) file into individual ParsedSdfStructure objects.
  */
-public class SDFParser implements Iterator<SDFParser.Molecule>, Closeable {
+public class SDFParser implements Iterator<SdfStructure>, Closeable {
 
-    private static final String DELIMITER = "$$$$";
+    public static final String EMPTY_STRUCTURE = """
+            EMPTY
+             -ISIS-  09302110142D
+             
+              0  0  0  0  0  0  0  0  0  0999 V2000
+            M  END
+            """;
 
-    private final BufferedReader reader;
-    private Molecule nextMolecule;
-    private boolean finished = false;
+    private static final int ERROR_THRESHOLD = 1000;
+    private static final String GENERIC_ERROR = "Error!";
 
-    public SDFParser(String absolutePath) {
-        try {
-            this.reader = Files.newBufferedReader(Path.of(absolutePath));
-            this.nextMolecule = parseNext();
-        } catch (IOException e) {
-            throw new FileParserException("Failed to open SDF file: " + absolutePath, e);
-        }
+    private final FileLinesScanner scanner;
+    private SdfStructure nextMolecule;
+    private long lineCount = 0;
+    private long errorCount = 0;
+    private SDFParserState state = SDFParserState.START;
+
+    public SDFParser(String filePath) {
+        this.scanner = new FileLinesScanner(filePath);
     }
 
     @Override
     public boolean hasNext() {
+        if (nextMolecule == null) {
+            nextMolecule = readNextMolecule();
+        }
         return nextMolecule != null;
     }
 
     @Override
-    public Molecule next() {
-        if (nextMolecule == null) {
-            throw new NoSuchElementException("No more molecules in the SDF file.");
+    public SdfStructure next() {
+        if (!hasNext()) {
+            throw new NoSuchElementException("No more molecules to read.");
         }
-        Molecule current = nextMolecule;
-        nextMolecule = parseNext();
+        SdfStructure current = nextMolecule;
+        nextMolecule = null;
         return current;
     }
 
     @Override
     public void close() {
-        try {
-            reader.close();
-        } catch (IOException e) {
-            throw new FileParserException("Failed to close SDF reader", e);
-        }
+        scanner.close();
     }
 
-    private Molecule parseNext() {
-        if (finished) return null;
+    private SdfStructure readNextMolecule() {
+        StringBuilder structureBuilder = new StringBuilder();
+        Map<String, String> properties = new LinkedHashMap<>();
+        String propertyName = null;
+        StringBuilder propertyValue = new StringBuilder();
+        String errorMessage = null;
 
-        List<String> blockLines = readUntilDelimiter();
-        if (blockLines.isEmpty()) {
-            finished = true;
-            return null;
-        }
+        while (!state.equals(SDFParserState.END) && scanner.hasNext()) {
+            String line = scanner.next();
+            lineCount++;
+            state = state.nextState(line);
 
-        return new Molecule(extractProperties(blockLines));
-    }
+            switch (state) {
+                case STRUCTURE, STRUCTURE_END -> structureBuilder.append(line).append(System.lineSeparator());
 
-    private List<String> readUntilDelimiter() {
-        List<String> blockLines = new ArrayList<>();
-        String line;
-
-        try {
-            while ((line = reader.readLine()) != null) {
-                if (line.equals(DELIMITER)) break;
-                blockLines.add(line);
-            }
-        } catch (IOException e) {
-            finished = true;
-            throw new FileParserException("Error reading SDF stream", e);
-        }
-
-        return blockLines;
-    }
-
-    private Map<String, String> extractProperties(List<String> blockLines) {
-        Map<String, String> props = new LinkedHashMap<>();
-        int i = skipMoleculeBlock(blockLines);
-
-        while (i < blockLines.size()) {
-            String line = blockLines.get(i);
-            if (line.startsWith(">")) {
-                String key = extractKey(line);
-                StringBuilder value = new StringBuilder();
-                i++;
-                while (i < blockLines.size() && !blockLines.get(i).startsWith(">") && !blockLines.get(i).equals(DELIMITER)) {
-                    value.append(blockLines.get(i)).append("\n");
-                    i++;
+                case PROPERTY_NAME -> {
+                    if (propertyName != null) {
+                        properties.put(propertyName, propertyValue.toString());
+                        propertyValue = new StringBuilder();
+                    }
+                    try {
+                        propertyName = extractPropertyName(line);
+                    } catch (ParserException e) {
+                        propertyName = null;
+                        errorMessage = formatErrorMessage(e.getMessage());
+                    }
                 }
-                props.put(key, value.toString().trim());
-            } else {
-                i++;
+
+                case PROPERTY_VALUE, PROPERTY_EMPTY_VALUE -> propertyValue.append(line).append(System.lineSeparator());
+
+                case PROPERTY_END -> {
+                    String cleanedValue = cleanValue(propertyValue.toString());
+                    if (propertyName != null) {
+                        properties.merge(propertyName, cleanedValue, (oldVal, newVal) -> oldVal + " " + newVal);
+                        propertyName = null;
+                        propertyValue = new StringBuilder();
+                    }
+                }
+
+                case ERROR -> {
+                    if (errorMessage == null) {
+                        errorMessage = formatErrorMessage("Unrecognized line: " + line);
+                    }
+                }
+
+                case END -> {
+                    return createParsedStructure(structureBuilder, properties, errorMessage);
+                }
+
+                default -> {
+                    // Ignore other states (START, etc.)
+                }
             }
         }
 
-        return props;
+        return finishPartialStructure(structureBuilder, properties, errorMessage);
     }
 
-    private int skipMoleculeBlock(List<String> blockLines) {
-        int i = 0;
-        while (i < blockLines.size() && !blockLines.get(i).startsWith(">")) {
-            i++;
+    private SdfStructure createParsedStructure(StringBuilder structure,
+                                               Map<String, String> properties,
+                                               String error) {
+        String structureText = structure.toString();
+        String finalError = errorCount < ERROR_THRESHOLD ? error : GENERIC_ERROR;
+        if (finalError != null) {
+            errorCount++;
         }
-        return i;
+        state = SDFParserState.START;
+        return new SdfStructure(structureText, properties, finalError);
     }
 
-    private String extractKey(String tagLine) {
-        int start = tagLine.indexOf('<');
-        int end = tagLine.indexOf('>');
-        if (start != -1 && end != -1 && end > start + 1) {
-            return tagLine.substring(start + 1, end).trim();
+    private SdfStructure finishPartialStructure(StringBuilder structure,
+                                                Map<String, String> properties,
+                                                String error) {
+        if (!state.equals(SDFParserState.START)) {
+            if (state.equals(SDFParserState.STRUCTURE) && structure.toString().isBlank()) {
+                return null;
+            }
+            String message = error != null ? error : "Molecule content incomplete";
+            errorCount++;
+            return new SdfStructure(EMPTY_STRUCTURE, properties,
+                    errorCount < ERROR_THRESHOLD ? message : GENERIC_ERROR);
         }
-        return "UNKNOWN";
+        return null;
     }
 
-    /**
-     * Represents a parsed molecule from an SDF file.
-     * Contains only the metadata properties (tag-value pairs).
-     */
-    public record Molecule(Map<String, String> properties) {
-        public String getProperty(String key) {
-            return properties.get(key);
+    private String formatErrorMessage(String message) {
+        return String.format("%s, line %d", message, lineCount);
+    }
+
+    private static String cleanValue(String value) {
+        return value == null ? "" : value.trim().replaceAll("\\s+", " ");
+    }
+
+    private static String extractPropertyName(String line) {
+        int start = line.indexOf("<");
+        int end = line.indexOf(">", start);
+        if (start < 1 || end - start < 2) {
+            throw new ParserException("Invalid property name syntax: " + line);
         }
+        return line.substring(start + 1, end);
     }
 }

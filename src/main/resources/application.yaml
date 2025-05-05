@@ -2,6 +2,10 @@ server:
   port: 8080
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
   application:
     name: chem-query-platform-demo
   datasource:
@@ -13,17 +17,32 @@ spring:
       ddl-auto: update
     show-sql: true
 
+elasticsearch:
+  hosts:
+    - http://localhost:9200
+  username: elastic
+  password: elastic
+
+indigo:
+  pool:
+    maximum-pool-size: 500
+    timeoutInSeconds: 30
+  inchi:
+    pool:
+      maximum-pool-size: 100
+      timeoutInSeconds: 30
+
 akka:
   actor:
     provider: cluster
     serializers:
       jackson-cbor: "akka.serialization.jackson.JacksonCborSerializer"
     serialization-bindings:
-      "com.quantori.qdp.core.task.actor.StreamTaskActor$Command": jackson-cbor
-      "com.quantori.qdp.core.task.model.StreamTaskStatus": jackson-cbor
-      "com.quantori.qdp.core.task.model.StreamTaskDetails": jackson-cbor
-      "com.quantori.qdp.core.task.model.StreamTaskResult": jackson-cbor
-      "com.quantori.qdp.core.task.model.StreamTaskProcessingException": jackson-cbor
+      "com.quantori.cqp.core.task.actor.StreamTaskActor$Command": jackson-cbor
+      "com.quantori.cqp.core.task.model.StreamTaskStatus": jackson-cbor
+      "com.quantori.cqp.core.task.model.StreamTaskDetails": jackson-cbor
+      "com.quantori.cqp.core.task.model.StreamTaskResult": jackson-cbor
+      "com.quantori.cqp.core.task.model.StreamTaskProcessingException": jackson-cbor
   remote:
     artery:
       canonical:
@@ -44,4 +63,7 @@ app:
   cluster:
     hostname: localhost
     port: 2551
-    nodes: localhost:2551
+    nodes:
+      - 127.0.0.1:2551
+      - 127.0.0.1:2552
+      - 127.0.0.1:2553
