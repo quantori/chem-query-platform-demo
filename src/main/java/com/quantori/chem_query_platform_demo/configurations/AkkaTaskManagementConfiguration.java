@@ -1,15 +1,15 @@
-package com.quantori.chem_query_platform_demo;
+package com.quantori.chem_query_platform_demo.configurations;
 
 import akka.actor.typed.ActorRef;
 import akka.stream.alpakka.slick.javadsl.SlickSession;
 import akka.stream.alpakka.slick.javadsl.SlickSession$;
-import com.quantori.qdp.core.source.SourceRootActor;
-import com.quantori.qdp.core.task.TaskServiceActor;
-import com.quantori.qdp.core.task.dao.TaskStatusDao;
-import com.quantori.qdp.core.task.service.StreamTaskService;
-import com.quantori.qdp.core.task.service.StreamTaskServiceImpl;
-import com.quantori.qdp.core.task.service.TaskPersistenceService;
-import com.quantori.qdp.core.task.service.TaskPersistenceServiceImpl;
+import com.quantori.cqp.core.source.SourceRootActor;
+import com.quantori.cqp.core.task.TaskServiceActor;
+import com.quantori.cqp.core.task.dao.TaskStatusDao;
+import com.quantori.cqp.core.task.service.StreamTaskService;
+import com.quantori.cqp.core.task.service.StreamTaskServiceImpl;
+import com.quantori.cqp.core.task.service.TaskPersistenceService;
+import com.quantori.cqp.core.task.service.TaskPersistenceServiceImpl;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import org.springframework.beans.factory.annotation.Value;
