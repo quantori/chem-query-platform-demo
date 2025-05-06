@@ -88,7 +88,7 @@ public class MoleculeProcessingController {
             MultipartFile file,
 
             @Parameter(
-                    description = "JSON metadata file (будет распарсено в SearchStructure)",
+                    description = "JSON metadata file",
                     in = ParameterIn.DEFAULT,
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
