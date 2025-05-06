@@ -1,109 +1,6 @@
-version: '3.8'
+version: '2.4'
 
 services:
-  akka-node-1:
-    build: .
-    container_name: akka-node-1
-    ports:
-      - "8080:8080"
-      - "2551:2551"
-    environment:
-      AKKA_REMOTE_HOSTNAME: akka-node-1
-      AKKA_REMOTE_PORT: 2551
-
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/chem_query_db
-      SPRING_DATASOURCE_USERNAME: chem_user
-      SPRING_DATASOURCE_PASSWORD: chem_password
-
-      ELASTICSEARCH_HOSTS: http://cqpelasticsearch:9200
-      ELASTICSEARCH_USERNAME: elastic
-      ELASTICSEARCH_PASSWORD: elastic
-
-      INDIGO_POOL_MAXIMUM-POOL-SIZE: 500
-      INDIGO_POOL_TIMEOUTINSECONDS: 30
-      INDIGO_INCHI_POOL_MAXIMUM-POOL-SIZE: 100
-      INDIGO_INCHI_POOL_TIMEOUTINSECONDS: 30
-    networks:
-      - akka-net
-    depends_on:
-      - db
-      - cqpelasticsearch
-    restart: unless-stopped
-    command: ./gradlew bootRun
-
-  akka-node-2:
-    build: .
-    container_name: akka-node-2
-    ports:
-      - "8081:8080"
-      - "2552:2552"
-    environment:
-      AKKA_REMOTE_HOSTNAME: akka-node-2
-      AKKA_REMOTE_PORT: 2552
-
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/chem_query_db
-      SPRING_DATASOURCE_USERNAME: chem_user
-      SPRING_DATASOURCE_PASSWORD: chem_password
-
-      ELASTICSEARCH_HOSTS: http://cqpelasticsearch:9200
-      ELASTICSEARCH_USERNAME: elastic
-      ELASTICSEARCH_PASSWORD: elastic
-
-      INDIGO_POOL_MAXIMUM-POOL-SIZE: 500
-      INDIGO_POOL_TIMEOUTINSECONDS: 30
-      INDIGO_INCHI_POOL_MAXIMUM-POOL-SIZE: 100
-      INDIGO_INCHI_POOL_TIMEOUTINSECONDS: 30
-    networks:
-      - akka-net
-    depends_on:
-      - db
-      - cqpelasticsearch
-    restart: unless-stopped
-    command: ./gradlew bootRun
-
-  akka-node-3:
-    build: .
-    container_name: akka-node-3
-    ports:
-      - "8082:8080"
-      - "2553:2553"
-    environment:
-      AKKA_REMOTE_HOSTNAME: akka-node-3
-      AKKA_REMOTE_PORT: 2553
-
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/chem_query_db
-      SPRING_DATASOURCE_USERNAME: chem_user
-      SPRING_DATASOURCE_PASSWORD: chem_password
-
-      ELASTICSEARCH_HOSTS: http://cqpelasticsearch:9200
-      ELASTICSEARCH_USERNAME: elastic
-      ELASTICSEARCH_PASSWORD: elastic
-
-      INDIGO_POOL_MAXIMUM-POOL-SIZE: 500
-      INDIGO_POOL_TIMEOUTINSECONDS: 30
-      INDIGO_INCHI_POOL_MAXIMUM-POOL-SIZE: 100
-      INDIGO_INCHI_POOL_TIMEOUTINSECONDS: 30
-    networks:
-      - akka-net
-    depends_on:
-      - db
-      - cqpelasticsearch
-    restart: unless-stopped
-    command: ./gradlew bootRun
-
-  load-balancer:
-    image: nginx:latest
-    container_name: akka-load-balancer
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-    networks:
-      - akka-net
-    depends_on:
-      - db
-      - cqpelasticsearch
-
   db:
     image: postgres:15-alpine
     container_name: postgres_db
@@ -119,6 +16,11 @@ services:
       - ./docker/postgres/init:/docker-entrypoint-initdb.d
     networks:
       - akka-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chem_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   cqpelasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
@@ -135,6 +37,129 @@ services:
       - akka-net
     volumes:
       - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  akka-node-1:
+    build: .
+    container_name: akka-node-1
+    ports:
+      - "8080:8080"
+      - "2551:2551"
+    environment:
+      AKKA_REMOTE_HOSTNAME: akka-node-1
+      AKKA_REMOTE_PORT: 2551
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/chem_query_db
+      SPRING_DATASOURCE_USERNAME: chem_user
+      SPRING_DATASOURCE_PASSWORD: chem_password
+      ELASTICSEARCH_HOSTS: http://cqpelasticsearch:9200
+      ELASTICSEARCH_USERNAME: elastic
+      ELASTICSEARCH_PASSWORD: elastic
+      INDIGO_POOL_MAXIMUM-POOL-SIZE: 500
+      INDIGO_POOL_TIMEOUTINSECONDS: 30
+      INDIGO_INCHI_POOL_MAXIMUM-POOL-SIZE: 100
+      INDIGO_INCHI_POOL_TIMEOUTINSECONDS: 30
+    networks:
+      - akka-net
+    depends_on:
+      db:
+        condition: service_healthy
+      cqpelasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: ./gradlew bootRun
+
+  akka-node-2:
+    build: .
+    container_name: akka-node-2
+    ports:
+      - "8081:8080"
+      - "2552:2552"
+    environment:
+      AKKA_REMOTE_HOSTNAME: akka-node-2
+      AKKA_REMOTE_PORT: 2552
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/chem_query_db
+      SPRING_DATASOURCE_USERNAME: chem_user
+      SPRING_DATASOURCE_PASSWORD: chem_password
+      ELASTICSEARCH_HOSTS: http://cqpelasticsearch:9200
+      ELASTICSEARCH_USERNAME: elastic
+      ELASTICSEARCH_PASSWORD: elastic
+      INDIGO_POOL_MAXIMUM-POOL-SIZE: 500
+      INDIGO_POOL_TIMEOUTINSECONDS: 30
+      INDIGO_INCHI_POOL_MAXIMUM-POOL-SIZE: 100
+      INDIGO_INCHI_POOL_TIMEOUTINSECONDS: 30
+    networks:
+      - akka-net
+    depends_on:
+      db:
+        condition: service_healthy
+      cqpelasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: ./gradlew bootRun
+
+  akka-node-3:
+    build: .
+    container_name: akka-node-3
+    ports:
+      - "8082:8080"
+      - "2553:2553"
+    environment:
+      AKKA_REMOTE_HOSTNAME: akka-node-3
+      AKKA_REMOTE_PORT: 2553
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/chem_query_db
+      SPRING_DATASOURCE_USERNAME: chem_user
+      SPRING_DATASOURCE_PASSWORD: chem_password
+      ELASTICSEARCH_HOSTS: http://cqpelasticsearch:9200
+      ELASTICSEARCH_USERNAME: elastic
+      ELASTICSEARCH_PASSWORD: elastic
+      INDIGO_POOL_MAXIMUM-POOL-SIZE: 500
+      INDIGO_POOL_TIMEOUTINSECONDS: 30
+      INDIGO_INCHI_POOL_MAXIMUM-POOL-SIZE: 100
+      INDIGO_INCHI_POOL_TIMEOUTINSECONDS: 30
+    networks:
+      - akka-net
+    depends_on:
+      db:
+        condition: service_healthy
+      cqpelasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: ./gradlew bootRun
+
+  load-balancer:
+    image: nginx:latest
+    container_name: akka-load-balancer
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    networks:
+      - akka-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
